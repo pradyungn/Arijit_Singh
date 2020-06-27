@@ -14,12 +14,10 @@ from secret import TOKEN, api_key
 client = commands.Bot(command_prefix='$')
 client.remove_command("help")
 
-curr = []
-
-player = 0
+player = {}
 
 forced = False
-songs = []
+songs = {}
 source = 1
 
 def get_pre(bot):
@@ -130,16 +128,19 @@ async def mushelper(e, ctx):
         embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
         await ctx.send(embed=embed)
         return
-    if len(songs)>0 and ctx.voice_client is not None:
+    if ctx.guild.id not in songs.keys():
+        songs[ctx.guild.id] = []
+
+    if len(songs[ctx.guild.id])>0 and ctx.voice_client is not None:
         async with ctx.typing():
-            player = songs[0]['src']
-            ctx.voice_client.play(player, after=lambda e: synchelper(e, ctx))
+            player[ctx.guild.id] = songs[ctx.guild.id][0]['src']
+            ctx.voice_client.play(player[ctx.guild.id], after=lambda e: synchelper(e, ctx))
             source = random.randint(1111111111,9999999999)
-            embed=discord.Embed(title='**Now Playing**', description='{}\n[{}]({})\n{}'.format(songs[0]['channtitle'] ,songs[0]['title'], songs[0]['url'], songs[0]['duration']), color=0xff8c00)
+            embed=discord.Embed(title='**Now Playing**', description='{}\n[{}]({})\n{}'.format(songs[0][ctx.guild.id]['channtitle'] ,songs[ctx.guild.id][0]['title'], songs[ctx.guild.id][0]['url'], songs[ctx.guild.id][0]['duration']), color=0xff8c00)
             embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
-            embed.set_thumbnail(url=f"http://img.youtube.com/vi/{songs[0]['res']}/0.jpg")
+            embed.set_thumbnail(url=f"http://img.youtube.com/vi/{songs[ctx.guild.id][0]['res']}/0.jpg")
             await ctx.send(embed=embed)
-            songs.pop(0)
+            songs[ctx.guild.id].pop(0)
     elif ctx.voice_client is not None and not forced:
         embed=discord.Embed(title='Turntables', description="That's all folks... play some more jams!", color=0xff8c00)
         embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
@@ -169,7 +170,7 @@ async def join(ctx, *, channel: discord.VoiceChannel=None):
 async def skip(ctx):
     global songs
     if ctx.voice_client is not None:
-        if len(songs)>0:
+        if len(songs[ctx.guild.id])>0:
             ctx.voice_client.stop()
             embed=discord.Embed(title='Turntables', description="Skipping...", color=0xff8c00)
             embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
@@ -198,6 +199,18 @@ async def play(ctx, *, query: str=None):
             query = urllib.parse.urlencode({'search_query':query})
             rawcon = urllib.request.urlopen(f'https://www.youtube.com/results?{query}')
             res  = re.findall('href=\"\\/watch\\?v=(.{11})', rawcon.read().decode())
+            if res == []:
+                for i in list(range(3)):
+                    if res==[]:
+                        res  = re.findall('href=\"\\/watch\\?v=(.{11})', rawcon.read().decode())
+                    else:
+                        break
+
+                if res==[]:
+                    embed=discord.Embed(title='Turntables', description="Something went wrong while querying beta - your search term was shit, or I had too much jilebi", color=0xff5555)
+                    embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
+                    await ctx.send(embed=embed)
+                    return
             res = res[0]
             url = f'https://www.youtube.com/watch?v={res}'
             searchUrl=f"https://www.googleapis.com/youtube/v3/videos?id={res}&key="+api_key+"&part=snippet%2CcontentDetails"
@@ -215,19 +228,22 @@ async def play(ctx, *, query: str=None):
         await ctx.send('You have to pick something to play doofus.')
         return
 
+    if ctx.guild.id not in songs.keys():
+        songs[ctx.guild.id] = []
+
     if not ctx.voice_client.is_playing() and not ctx.voice_client.is_paused():
         async with ctx.typing():
-            player = await YTDLSource.from_url(url, loop=client.loop, stream=True)
-            ctx.voice_client.play(player, after=lambda e: synchelper(e, ctx))
+            player[ctx.guild.id] = await YTDLSource.from_url(url, loop=client.loop, stream=True)
+            ctx.voice_client.play(player[ctx.guild.id], after=lambda e: synchelper(e, ctx))
             source = random.randint(1111111111,9999999999)
             embed=discord.Embed(title='**Now Playing**', description='{}\n[{}]({})\n{}'.format(channelTitle, title, url, duration), color=0xff8c00)
             embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
             embed.set_thumbnail(url=f"http://img.youtube.com/vi/{res}/0.jpg")
             await ctx.send(embed=embed)
     else:
-        player = await YTDLSource.from_url(url, loop=client.loop, stream=True)
-        playdic = {'src': player, 'url': url, 'duration': duration, 'res': res, 'channtitle':channelTitle, 'title': title}
-        songs.append(playdic)
+        player[ctx.guild.id] = await YTDLSource.from_url(url, loop=client.loop, stream=True)
+        playdic = {'src': player[ctx.guild.id], 'url': url, 'duration': duration, 'res': res, 'channtitle':channelTitle, 'title': title}
+        songs[ctx.guild.id].append(playdic)
         embed=discord.Embed(title='**Queued Up**', description='**{}**\n[{}]({})\n{}'.format(channelTitle, title, url, duration), color=0xff8c00)
         embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
         embed.set_thumbnail(url=f"http://img.youtube.com/vi/{res}/0.jpg")
@@ -236,28 +252,32 @@ async def play(ctx, *, query: str=None):
 @client.command(brief="See what's coming up, or delete something.", description='Use the command with no arguments to see the queue. After seeing the queue, enter the command again with the number of the song you want to delete (i.e `!queue 1`).')
 async def queue(ctx,*, remove: int=None):
     global songs
+
+    if ctx.guild.id not in songs.keys():
+        songs[ctx.guild.id] = []
+        
     if remove is not None:
-        if remove > len(songs):
-            embed=discord.Embed(title='Queue', description=f"The number of the song you wanted to delete was too high... there's only {len(songs)} songs!", color=0xff8c00)
+        if remove > len(songs[ctx.guild.id]):
+            embed=discord.Embed(title='Queue', description=f"The number of the song you wanted to delete was too high... there's only {len(songs[ctx.guild.id])} songs!", color=0xff8c00)
             embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
             await ctx.send(embed=embed)
         else:
             remove -= 1
-            cache = songs[remove]
-            songs.pop(remove)
+            cache = songs[ctx.guild.id][remove]
+            songs[ctx.guild.id].pop(remove)
             embed=discord.Embed(title='Queue', description=f"Removed `{cache['title']}`", color=0xff8c00)
             embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
             await ctx.send(embed=embed)
 
     else:
-        if len(songs) == 0:
+        if len(songs[ctx.guild.id]) == 0:
             embed=discord.Embed(title='Queue', description="There aren't any songs queued up!", color=0xff8c00)
             embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
             await ctx.send(embed=embed)
         else:
-            msg = f'There\'s {len(songs)} song(s) queued up:\n'
-            for i in list(range(len(songs))):
-                msg = msg + f"{i+1}: [{songs[i]['src'].title}]({songs[i]['url']})\n"
+            msg = f'There\'s {len(songs[ctx.guild.id])} song(s) queued up:\n'
+            for i in list(range(len(songs[ctx.guild.id]))):
+                msg = msg + f"{i+1}: [{songs[ctx.guild.id][i]['src'].title}]({songs[ctx.guild.id][i]['url']})\n"
             embed=discord.Embed(title='Queue', description=msg, color=0xff8c00)
             embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
             await ctx.send(embed=embed)
@@ -288,7 +308,7 @@ async def stop(ctx):
     global songs
     global forced
     if ctx.voice_client is not None:
-        songs = []
+        songs[ctx.guild.id] = []
         forced = True
         await ctx.voice_client.disconnect()
         embed=discord.Embed(title='We the best Myoosic...', description="We out!", color=0xff8c00)
@@ -377,7 +397,7 @@ async def still_playing(ctx):
     await asyncio.sleep(300)
     if ctx.voice_client is not None:
         if ctx.voice_client.is_paused() and ctx.sourcepause == source:
-            songs = []
+            songs[ctx.guild.id] = []
             forced = True
             await ctx.voice_client.disconnect()
             embed=discord.Embed(title='We the best Myoosic...', description="It looks like you aren't playing that song anymore... we're out!", color=0xff8c00)
