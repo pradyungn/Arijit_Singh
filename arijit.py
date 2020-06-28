@@ -249,16 +249,62 @@ async def play(ctx, *, query: str=None):
         embed.set_thumbnail(url=f"http://img.youtube.com/vi/{res}/0.jpg")
         await ctx.send(embed=embed)
 
+@client.command(brief="I like to move it move it", description="Move songs around in the queue - parameter for the new song is optional, it defaults to your first index.")
+async def move(ctx, init: int=None, new: int=1):
+    if init==None:
+        embed=discord.Embed(title='Chak De Postal Service', description=f"Beta you didn't even give a number vat da shrek, eat less jilebi.", color=0xff5555)
+        embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
+        await ctx.send(embed=embed)
+        return 
+
+    le = len(songs[ctx.guild.id]) 
+
+    if init > le or new > le:
+        embed=discord.Embed(title='Chak De Postal Service', description=f"One of your numbers was too high - please adhere to the numbering in `$queue`", color=0xff5555)
+        embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
+        await ctx.send(embed=embed)
+        return 
+
+    if init < 1 or new < 1:
+        embed=discord.Embed(title='Chak De Postal Service', description=f"Beta you can't have numbers that low, get off of jilebi. Stahp it. Get help.", color=0xff5555)
+        embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
+        await ctx.send(embed=embed)
+        return 
+
+    if init == new:
+        embed=discord.Embed(title='Chak De Postal Service', description=f"Nice try at a prjenk", color=0xff5555)
+        embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
+        await ctx.send(embed=embed)
+        return 
+    
+    init = songs[ctx.guild.id].pop(init-1)
+    songs[ctx.guild.id].insert(new-1, init)
+    embed=discord.Embed(title='Chak De Postal Service', description=f"Moved `{init['title']}` to position {new}.", color=0x50fa7b)
+    embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
+    await ctx.send(embed=embed)
+
 @client.command(brief="See what's coming up, or delete something.", description='Use the command with no arguments to see the queue. After seeing the queue, enter the command again with the number of the song you want to delete (i.e `!queue 1`).')
-async def queue(ctx,*, remove: int=None):
+async def queue(ctx,*, remove: str=None):
     global songs
 
     if ctx.guild.id not in songs.keys():
         songs[ctx.guild.id] = []
         
     if remove is not None:
+        try:
+            remove = int(remove)
+        except:
+            embed=discord.Embed(title='Queue', description=f"Bro that's not even an number... are you high on jilebi?", color=0xff5555)
+            embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
+            await ctx.send(embed=embed)
+            return 
+
         if remove > len(songs[ctx.guild.id]):
-            embed=discord.Embed(title='Queue', description=f"The number of the song you wanted to delete was too high... there's only {len(songs[ctx.guild.id])} songs!", color=0xff8c00)
+            embed=discord.Embed(title='Queue', description=f"The number of the song you wanted to delete was too high... there's only {len(songs[ctx.guild.id])} songs!", color=0xff5555)
+            embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
+            await ctx.send(embed=embed)
+        if remove < 1:
+            embed=discord.Embed(title='Queue', description=f"That number was a wee bit too low...", color=0xff5555)
             embed.set_author(name=f"DJ Arijit Singh", icon_url=client.user.avatar_url)
             await ctx.send(embed=embed)
         else:
